@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "checkJs": true,
+        "target": "es2015"
+    },
+    "include": [
+        "www/**/*"
+    ],
+    "typeAcquisition": {
+        "include": [
+            "cordova-plugin-play-games-services"
+        ]
+    }
+}

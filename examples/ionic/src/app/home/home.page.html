@@ -1,0 +1,19 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>
+      PlayGames Service Example
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="ion-padding">
+    <h1>Ionic PlayGames Service Example</h1>
+    <div *ngIf="!isSignedIn">
+      <p><ion-button (click)="signIn()">Sign in</ion-button></p>
+    </div>
+    <div *ngIf="isSignedIn">
+      <p><ion-button (click)="signOut()">Sign out</ion-button></p>
+    </div>
+  </div>
+</ion-content>

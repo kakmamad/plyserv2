@@ -1,0 +1,7 @@
+{
+  "name": "IonicPlayGamesServiceExample",
+  "integrations": {
+    "cordova": {}
+  },
+  "type": "angular"
+}
