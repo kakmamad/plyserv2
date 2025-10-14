@@ -1,0 +1,200 @@
+{
+  "optimizationProfiles": {
+    "weak_device": {
+      "description": "تنظیمات برای گوشی های ضعیف",
+      "general": {
+        "maxFPS": 20,
+        "adaptiveFPS": true,
+        "lowQualityMode": true,
+        "textureCompression": true,
+        "memoryManagement": true,
+        "garbageCollectionInterval": 3000
+      },
+      "physics": {
+        "enabled": true,
+        "maxObjects": 20,
+        "maxVelocity": 500,
+        "velocityIterations": 4,
+        "positionIterations": 1,
+        "sleepingEnabled": true,
+        "continuousPhysics": false,
+        "powerSaveMode": true,
+        "weakDeviceMode": true
+      },
+      "graphics": {
+        "antiAliasing": false,
+        "shadowsEnabled": false,
+        "particleLimit": 50,
+        "textureQuality": "low",
+        "effectsEnabled": false
+      },
+      "audio": {
+        "quality": "low",
+        "maxChannels": 4,
+        "compressionLevel": "high",
+        "spatialAudio": false
+      },
+      "telegram": {
+        "batteryOptimization": true,
+        "backgroundBehavior": "pause",
+        "compressionLevel": "high",
+        "hapticFeedback": false
+      }
+    },
+    "medium_device": {
+      "description": "تنظیمات برای گوشی های متوسط",
+      "general": {
+        "maxFPS": 30,
+        "adaptiveFPS": true,
+        "lowQualityMode": false,
+        "textureCompression": true,
+        "memoryManagement": true,
+        "garbageCollectionInterval": 5000
+      },
+      "physics": {
+        "enabled": true,
+        "maxObjects": 40,
+        "maxVelocity": 800,
+        "velocityIterations": 6,
+        "positionIterations": 2,
+        "sleepingEnabled": true,
+        "continuousPhysics": false,
+        "powerSaveMode": false,
+        "weakDeviceMode": false
+      },
+      "graphics": {
+        "antiAliasing": false,
+        "shadowsEnabled": false,
+        "particleLimit": 100,
+        "textureQuality": "medium",
+        "effectsEnabled": true
+      },
+      "audio": {
+        "quality": "medium",
+        "maxChannels": 8,
+        "compressionLevel": "medium",
+        "spatialAudio": false
+      },
+      "telegram": {
+        "batteryOptimization": true,
+        "backgroundBehavior": "reduce",
+        "compressionLevel": "medium",
+        "hapticFeedback": true
+      }
+    },
+    "strong_device": {
+      "description": "تنظیمات برای گوشی های قوی",
+      "general": {
+        "maxFPS": 60,
+        "adaptiveFPS": true,
+        "lowQualityMode": false,
+        "textureCompression": false,
+        "memoryManagement": true,
+        "garbageCollectionInterval": 10000
+      },
+      "physics": {
+        "enabled": true,
+        "maxObjects": 80,
+        "maxVelocity": 1000,
+        "velocityIterations": 8,
+        "positionIterations": 3,
+        "sleepingEnabled": true,
+        "continuousPhysics": true,
+        "powerSaveMode": false,
+        "weakDeviceMode": false
+      },
+      "graphics": {
+        "antiAliasing": true,
+        "shadowsEnabled": true,
+        "particleLimit": 200,
+        "textureQuality": "high",
+        "effectsEnabled": true
+      },
+      "audio": {
+        "quality": "high",
+        "maxChannels": 16,
+        "compressionLevel": "low",
+        "spatialAudio": true
+      },
+      "telegram": {
+        "batteryOptimization": false,
+        "backgroundBehavior": "continue",
+        "compressionLevel": "low",
+        "hapticFeedback": true
+      }
+    }
+  },
+  "deviceDetection": {
+    "weakDeviceCriteria": {
+      "maxCores": 4,
+      "maxMemory": 2,
+      "slowConnections": ["2g", "slow-2g", "3g"],
+      "knownWeakModels": [
+        "SM-J111F", "SM-J120F", "SM-J200F", "SM-J210F", "SM-J250F",
+        "SM-A105F", "SM-A205F", "SM-A305F",
+        "Redmi 4A", "Redmi 5A", "Redmi 6A", "Redmi 7A", "Redmi 8A",
+        "iPhone 6", "iPhone 6 Plus", "iPhone SE",
+        "LG K8", "LG K10", "LG K20",
+        "Moto E4", "Moto E5", "Moto G5"
+      ]
+    },
+    "benchmarkThresholds": {
+      "weak": 30,
+      "medium": 60,
+      "strong": 80
+    }
+  },
+  "telegramOptimizations": {
+    "viewport": {
+      "autoExpand": true,
+      "preventZoom": true,
+      "hideScrollbars": true,
+      "fullscreenMode": false
+    },
+    "theme": {
+      "integration": true,
+      "autoApply": true,
+      "cssVariables": true
+    },
+    "performance": {
+      "batteryAware": true,
+      "networkAware": true,
+      "backgroundOptimization": true
+    },
+    "storage": {
+      "compression": true,
+      "cloudSync": false,
+      "localOptimization": true
+    }
+  },
+  "emergencyOptimizations": {
+    "triggers": {
+      "lowFPS": 15,
+      "highFrameTime": 50,
+      "memoryPressure": 0.8,
+      "batteryLow": 0.2
+    },
+    "actions": {
+      "reduceFPS": true,
+      "disableEffects": true,
+      "forceGarbageCollection": true,
+      "pauseNonEssential": true,
+      "enablePowerSaveMode": true
+    }
+  },
+  "monitoring": {
+    "performanceMetrics": {
+      "fps": true,
+      "frameTime": true,
+      "memoryUsage": true,
+      "physicsObjects": true,
+      "networkLatency": false
+    },
+    "reportingInterval": 5000,
+    "alertThresholds": {
+      "criticalFPS": 10,
+      "criticalFrameTime": 100,
+      "criticalMemory": 0.9
+    }
+  }
+}
