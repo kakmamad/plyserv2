@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>بازی بهینه شده برای تلگرام</title>
+    
+    <!-- Telegram WebApp API -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Optimization Scripts -->
+    <script src="device-detector.js"></script>
+    <script src="construct2-optimization.js"></script>
+    <script src="physics-optimizer.js"></script>
+    <script src="memory-manager.js"></script>
+    <script src="telegram-mini-app-wrapper.js"></script>
+    <script src="construct2-telegram-optimizer.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--tg-bg-color, #ffffff);
+            color: var(--tg-text-color, #000000);
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        #loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #loading-text {
+            color: white;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        #loading-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        #loading-bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        #performance-info {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 100;
+            display: none;
+        }
+        
+        #performance-info.show {
+            display: block;
+        }
+        
+        #performance-info h3 {
+            margin-bottom: 5px;
+            color: #00ff00;
+        }
+        
+        #performance-info div {
+            margin-bottom: 2px;
+        }
+        
+        #controls {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 100;
+        }
+        
+        .control-btn {
+            background: var(--tg-button-color, #007aff);
+            color: var(--tg-button-text-color, #ffffff);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+        
+        .control-btn:hover {
+            opacity: 0.8;
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #quality-indicator {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        .quality-low { background: rgba(255, 0, 0, 0.7); }
+        .quality-medium { background: rgba(255, 165, 0, 0.7); }
+        .quality-high { background: rgba(0, 255, 0, 0.7); }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div id="loading-spinner"></div>
+        <div id="loading-text">در حال بارگذاری بازی...</div>
+        <div id="loading-progress">
+            <div id="loading-bar"></div>
+        </div>
+    </div>
+    
+    <!-- Performance Info (Hidden by default) -->
+    <div id="performance-info">
+        <h3>اطلاعات عملکرد</h3>
+        <div id="fps-info">FPS: --</div>
+        <div id="memory-info">حافظه: --</div>
+        <div id="device-info">دستگاه: --</div>
+    </div>
+    
+    <!-- Quality Indicator -->
+    <div id="quality-indicator quality-medium">
+        کیفیت: متوسط
+    </div>
+    
+    <!-- Game Container -->
+    <div id="game-container">
+        <!-- Construct 2 game will be loaded here -->
+        <canvas id="game-canvas" width="800" height="600"></canvas>
+    </div>
+    
+    <!-- Controls -->
+    <div id="controls">
+        <button class="control-btn" id="pause-btn">توقف</button>
+        <button class="control-btn" id="quality-btn">تغییر کیفیت</button>
+        <button class="control-btn" id="info-btn">اطلاعات</button>
+    </div>
+    
+    <script>
+        // Global variables
+        let optimizer = null;
+        let gameLoaded = false;
+        let performanceInfoVisible = false;
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeOptimizer();
+            setupEventListeners();
+            simulateGameLoading();
+        });
+        
+        // Initialize the optimizer
+        function initializeOptimizer() {
+            try {
+                optimizer = new Construct2TelegramOptimizer({
+                    enablePhysicsOptimization: true,
+                    enableMemoryManagement: true,
+                    enableDeviceDetection: true,
+                    enableTelegramIntegration: true
+                });
+                
+                // Listen for optimizer ready event
+                document.addEventListener('construct2OptimizerReady', (event) => {
+                    console.log('Optimizer ready:', event.detail);
+                    updateQualityIndicator();
+                });
+                
+            } catch (error) {
+                console.error('Failed to initialize optimizer:', error);
+            }
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            // Pause button
+            document.getElementById('pause-btn').addEventListener('click', togglePause);
+            
+            // Quality button
+            document.getElementById('quality-btn').addEventListener('click', toggleQuality);
+            
+            // Info button
+            document.getElementById('info-btn').addEventListener('click', togglePerformanceInfo);
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    togglePause();
+                } else if (e.key === 'i' || e.key === 'I') {
+                    togglePerformanceInfo();
+                } else if (e.key === 'q' || e.key === 'Q') {
+                    toggleQuality();
+                }
+            });
+        }
+        
+        // Simulate game loading
+        function simulateGameLoading() {
+            let progress = 0;
+            const loadingBar = document.getElementById('loading-bar');
+            const loadingText = document.getElementById('loading-text');
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 100) progress = 100;
+                
+                loadingBar.style.width = progress + '%';
+                
+                if (progress < 30) {
+                    loadingText.textContent = 'در حال تشخیص قابلیت‌های دستگاه...';
+                } else if (progress < 60) {
+                    loadingText.textContent = 'در حال بهینه‌سازی فیزیک...';
+                } else if (progress < 90) {
+                    loadingText.textContent = 'در حال بارگذاری بازی...';
+                } else {
+                    loadingText.textContent = 'آماده!';
+                }
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        hideLoadingScreen();
+                        startGame();
+                    }, 500);
+                }
+            }, 200);
+        }
+        
+        // Hide loading screen
+        function hideLoadingScreen() {
+            const loadingScreen = document.getElementById('loading-screen');
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 300);
+        }
+        
+        // Start the game
+        function startGame() {
+            gameLoaded = true;
+            
+            // Here you would normally start your Construct 2 game
+            // For this example, we'll just show a message
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Draw a simple game scene
+            drawGameScene(ctx);
+            
+            // Start performance monitoring
+            startPerformanceMonitoring();
+        }
+        
+        // Draw a simple game scene
+        function drawGameScene(ctx) {
+            const canvas = ctx.canvas;
+            
+            // Clear canvas
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw some animated elements
+            const time = Date.now() * 0.001;
+            
+            // Draw stars
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 100; i++) {
+                const x = (i * 7) % canvas.width;
+                const y = (i * 11) % canvas.height;
+                const size = Math.sin(time + i) * 2 + 1;
+                ctx.fillRect(x, y, size, size);
+            }
+            
+            // Draw a simple character
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Body
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fillRect(centerX - 20, centerY - 20, 40, 40);
+            
+            // Head
+            ctx.fillStyle = '#ffd93d';
+            ctx.fillRect(centerX - 15, centerY - 40, 30, 30);
+            
+            // Eyes
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(centerX - 10, centerY - 35, 5, 5);
+            ctx.fillRect(centerX + 5, centerY - 35, 5, 5);
+            
+            // Animate
+            requestAnimationFrame(() => drawGameScene(ctx));
+        }
+        
+        // Start performance monitoring
+        function startPerformanceMonitoring() {
+            setInterval(() => {
+                if (optimizer && performanceInfoVisible) {
+                    updatePerformanceInfo();
+                }
+            }, 1000);
+        }
+        
+        // Update performance info
+        function updatePerformanceInfo() {
+            const fpsInfo = document.getElementById('fps-info');
+            const memoryInfo = document.getElementById('memory-info');
+            const deviceInfo = document.getElementById('device-info');
+            
+            if (optimizer) {
+                const perfStats = optimizer.getPerformanceStats();
+                const memStats = optimizer.getMemoryStats();
+                const deviceProfile = optimizer.getDeviceProfile();
+                
+                if (perfStats) {
+                    fpsInfo.textContent = `FPS: ${perfStats.fps}`;
+                }
+                
+                if (memStats) {
+                    memoryInfo.textContent = `حافظه: ${memStats.memoryUsage.toFixed(1)}MB`;
+                }
+                
+                if (deviceProfile) {
+                    deviceInfo.textContent = `دستگاه: ${deviceProfile.isLowEnd ? 'ضعیف' : deviceProfile.isMidRange ? 'متوسط' : 'قوی'}`;
+                }
+            }
+        }
+        
+        // Update quality indicator
+        function updateQualityIndicator() {
+            if (optimizer) {
+                const perfStats = optimizer.getPerformanceStats();
+                const indicator = document.getElementById('quality-indicator');
+                
+                if (perfStats) {
+                    const mode = perfStats.performanceMode;
+                    indicator.className = `quality-${mode}`;
+                    indicator.textContent = `کیفیت: ${mode === 'low' ? 'پایین' : mode === 'medium' ? 'متوسط' : 'بالا'}`;
+                }
+            }
+        }
+        
+        // Toggle pause
+        function togglePause() {
+            if (optimizer && optimizer.getTelegramMiniApp()) {
+                const telegramApp = optimizer.getTelegramMiniApp();
+                if (gameLoaded) {
+                    telegramApp.pauseGame();
+                } else {
+                    telegramApp.resumeGame();
+                }
+            }
+        }
+        
+        // Toggle quality
+        function toggleQuality() {
+            if (optimizer) {
+                const perfStats = optimizer.getPerformanceStats();
+                if (perfStats) {
+                    const currentMode = perfStats.performanceMode;
+                    let newMode;
+                    
+                    if (currentMode === 'low') {
+                        newMode = 'medium';
+                    } else if (currentMode === 'medium') {
+                        newMode = 'high';
+                    } else {
+                        newMode = 'low';
+                    }
+                    
+                    optimizer.updateOptimizationLevel(newMode);
+                    updateQualityIndicator();
+                    
+                    // Show notification
+                    if (optimizer.getTelegramMiniApp()) {
+                        optimizer.showPopup(`کیفیت به ${newMode === 'low' ? 'پایین' : newMode === 'medium' ? 'متوسط' : 'بالا'} تغییر یافت`);
+                    }
+                }
+            }
+        }
+        
+        // Toggle performance info
+        function togglePerformanceInfo() {
+            const info = document.getElementById('performance-info');
+            performanceInfoVisible = !performanceInfoVisible;
+            
+            if (performanceInfoVisible) {
+                info.classList.add('show');
+                updatePerformanceInfo();
+            } else {
+                info.classList.remove('show');
+            }
+        }
+        
+        // Handle visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (optimizer && optimizer.getTelegramMiniApp()) {
+                const telegramApp = optimizer.getTelegramMiniApp();
+                if (document.hidden) {
+                    telegramApp.pauseGame();
+                } else {
+                    telegramApp.resumeGame();
+                }
+            }
+        });
+        
+        // Handle orientation change
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                if (optimizer && optimizer.getTelegramMiniApp()) {
+                    optimizer.getTelegramMiniApp().handleOrientationChange();
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>
