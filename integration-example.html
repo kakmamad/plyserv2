@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>نمونه ادغام بهینه ساز Construct 2</title>
+    
+    <!-- CSS برای نمایش بهتر -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--tg-bg-color, #ffffff);
+            color: var(--tg-text-color, #000000);
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .game-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .game-canvas {
+            max-width: 100%;
+            max-height: 100vh;
+            background: #000;
+            border-radius: 8px;
+        }
+        
+        .loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 1000;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #333;
+            border-top: 3px solid var(--tg-button-color, #0088cc);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 999;
+            display: none;
+        }
+        
+        .status-panel.show {
+            display: block;
+        }
+        
+        .debug-info {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            z-index: 999;
+            display: none;
+            max-width: 300px;
+        }
+        
+        .debug-info.show {
+            display: block;
+        }
+        
+        .error-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff4444;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1001;
+            display: none;
+        }
+        
+        .safe-area {
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+    </style>
+</head>
+<body>
+    <!-- صفحه بارگذاری -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <div id="loadingText">در حال بارگذاری بهینه ساز...</div>
+        <div id="loadingProgress" style="margin-top: 10px; font-size: 14px;">0%</div>
+    </div>
+    
+    <!-- کانتینر اصلی بازی -->
+    <div class="game-container safe-area">
+        <!-- اینجا canvas بازی Construct 2 قرار می‌گیرد -->
+        <canvas id="gameCanvas" class="game-canvas" width="800" height="600">
+            مرورگر شما از Canvas پشتیبانی نمی‌کند
+        </canvas>
+    </div>
+    
+    <!-- پنل وضعیت -->
+    <div id="statusPanel" class="status-panel">
+        <div>FPS: <span id="fpsDisplay">--</span></div>
+        <div>دستگاه: <span id="deviceClass">--</span></div>
+        <div>حالت: <span id="optimizationMode">--</span></div>
+    </div>
+    
+    <!-- اطلاعات debug -->
+    <div id="debugInfo" class="debug-info">
+        <div>اجسام فیزیکی: <span id="physicsObjects">--</span></div>
+        <div>حافظه: <span id="memoryUsage">--</span></div>
+        <div>بهینه سازی ها: <span id="optimizationCount">--</span></div>
+        <div>تلگرام: <span id="telegramStatus">--</span></div>
+    </div>
+    
+    <!-- پیام خطا -->
+    <div id="errorMessage" class="error-message">
+        <h3>خطا در بارگذاری</h3>
+        <p id="errorText">مشکلی در راه اندازی بهینه ساز رخ داده است</p>
+        <button onclick="location.reload()" style="margin-top: 10px; padding: 5px 15px;">تلاش مجدد</button>
+    </div>
+
+    <!-- اسکریپت های بهینه ساز -->
+    <script src="construct2-mobile-optimizer.js"></script>
+    <script src="physics-optimizer.js"></script>
+    <script src="mobile-device-detector.js"></script>
+    <script src="telegram-mini-app-optimizer.js"></script>
+    
+    <!-- اسکریپت اصلی -->
+    <script>
+        // متغیرهای سراسری
+        let gameOptimizers = null;
+        let isDebugMode = false;
+        let gameInitialized = false;
+        
+        // تنظیمات پیش‌فرض
+        const defaultConfig = {
+            showStatusPanel: true,
+            showDebugInfo: false,
+            autoOptimize: true,
+            emergencyOptimizations: true
+        };
+        
+        // راه اندازی اولیه
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 شروع راه اندازی بهینه ساز...');
+            
+            try {
+                await initializeOptimizers();
+                await initializeGame();
+                startMonitoring();
+                
+                console.log('✅ راه اندازی کامل شد');
+                
+            } catch (error) {
+                console.error('❌ خطا در راه اندازی:', error);
+                showError('خطا در راه اندازی بهینه ساز: ' + error.message);
+            }
+        });
+        
+        // راه اندازی بهینه سازها
+        async function initializeOptimizers() {
+            updateLoadingText('تشخیص دستگاه...');
+            updateProgress(10);
+            
+            // تشخیص دستگاه
+            const detector = new MobileDeviceDetector();
+            const deviceInfo = await detector.detectDevice();
+            
+            console.log('📱 اطلاعات دستگاه:', deviceInfo);
+            updateLoadingText('راه اندازی بهینه ساز اصلی...');
+            updateProgress(30);
+            
+            // راه اندازی بهینه ساز اصلی
+            const mainOptimizer = new Construct2MobileOptimizer({
+                ...deviceInfo.optimizationPreset.general,
+                autoDetectDevice: true,
+                debug: isDebugMode
+            });
+            
+            await mainOptimizer.initialize();
+            updateProgress(50);
+            
+            // راه اندازی بهینه ساز فیزیک
+            updateLoadingText('راه اندازی بهینه ساز فیزیک...');
+            const physicsOptimizer = new PhysicsOptimizer({
+                ...deviceInfo.optimizationPreset.physics,
+                debug: isDebugMode
+            });
+            
+            updateProgress(70);
+            
+            // راه اندازی بهینه ساز تلگرام (اگر در محیط تلگرام است)
+            let telegramOptimizer = null;
+            if (window.Telegram && window.Telegram.WebApp) {
+                updateLoadingText('راه اندازی بهینه ساز تلگرام...');
+                
+                telegramOptimizer = new TelegramMiniAppOptimizer({
+                    ...deviceInfo.optimizationPreset.telegram,
+                    debug: isDebugMode
+                });
+                
+                await telegramOptimizer.initialize();
+                
+                // تنظیم callback های تلگرام
+                setupTelegramCallbacks(telegramOptimizer);
+            }
+            
+            updateProgress(90);
+            
+            // ذخیره reference ها
+            gameOptimizers = {
+                main: mainOptimizer,
+                physics: physicsOptimizer,
+                telegram: telegramOptimizer,
+                detector: detector,
+                deviceInfo: deviceInfo
+            };
+            
+            // تنظیم نظارت بر عملکرد
+            setupPerformanceMonitoring();
+            
+            updateProgress(100);
+            updateLoadingText('آماده سازی بازی...');
+            
+            // نمایش اطلاعات دستگاه
+            updateDeviceInfo(deviceInfo);
+        }
+        
+        // راه اندازی بازی
+        async function initializeGame() {
+            // شبیه سازی بارگذاری بازی Construct 2
+            // در پروژه واقعی، این بخش توسط Construct 2 انجام می‌شود
+            
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // تنظیم اندازه canvas بر اساس viewport
+            resizeCanvas();
+            
+            // شبیه سازی محتوای بازی
+            drawGameContent(ctx);
+            
+            // راه اندازی بهینه ساز فیزیک (شبیه سازی)
+            if (gameOptimizers.physics) {
+                // در پروژه واقعی، world از Construct 2 می‌آید
+                const mockWorld = createMockPhysicsWorld();
+                gameOptimizers.physics.initialize(mockWorld);
+            }
+            
+            gameInitialized = true;
+            
+            // مخفی کردن صفحه بارگذاری
+            setTimeout(() => {
+                hideLoadingScreen();
+            }, 500);
+        }
+        
+        // تنظیم callback های تلگرام
+        function setupTelegramCallbacks(telegramOptimizer) {
+            telegramOptimizer.addLifecycleCallback('onShow', () => {
+                console.log('🎮 بازی نمایش داده شد');
+                if (gameInitialized) {
+                    resumeGame();
+                }
+            });
+            
+            telegramOptimizer.addLifecycleCallback('onHide', () => {
+                console.log('⏸️ بازی مخفی شد');
+                if (gameInitialized) {
+                    pauseGame();
+                }
+            });
+            
+            telegramOptimizer.addLifecycleCallback('onThemeChange', (themeData) => {
+                console.log('🎨 Theme تغییر کرد:', themeData.theme);
+                applyThemeToGame(themeData);
+            });
+            
+            telegramOptimizer.addLifecycleCallback('onViewportChange', (viewport) => {
+                console.log('📐 Viewport تغییر کرد:', viewport);
+                resizeCanvas();
+            });
+        }
+        
+        // تنظیم نظارت بر عملکرد
+        function setupPerformanceMonitoring() {
+            if (gameOptimizers.detector) {
+                gameOptimizers.detector.startPerformanceMonitoring((data) => {
+                    console.log(`📊 تغییر عملکرد: ${data.oldClass} → ${data.newClass}`);
+                    
+                    // تطبیق تنظیمات با عملکرد جدید
+                    if (data.newClass !== data.oldClass) {
+                        adaptToPerformanceChange(data);
+                    }
+                });
+            }
+        }
+        
+        // شروع نظارت
+        function startMonitoring() {
+            if (!defaultConfig.showStatusPanel && !defaultConfig.showDebugInfo) {
+                return;
+            }
+            
+            setInterval(() => {
+                updateStatusDisplay();
+            }, 1000);
+            
+            // نمایش پنل ها
+            if (defaultConfig.showStatusPanel) {
+                document.getElementById('statusPanel').classList.add('show');
+            }
+            
+            if (defaultConfig.showDebugInfo || isDebugMode) {
+                document.getElementById('debugInfo').classList.add('show');
+            }
+        }
+        
+        // به روزرسانی نمایش وضعیت
+        function updateStatusDisplay() {
+            if (!gameOptimizers) return;
+            
+            try {
+                // آمار عمومی
+                const mainStats = gameOptimizers.main.getPerformanceStats();
+                document.getElementById('fpsDisplay').textContent = Math.round(mainStats.fps);
+                document.getElementById('deviceClass').textContent = gameOptimizers.deviceInfo.performanceClass;
+                document.getElementById('optimizationMode').textContent = mainStats.isOptimized ? 'فعال' : 'غیرفعال';
+                
+                // اطلاعات debug
+                if (gameOptimizers.physics) {
+                    const physicsStats = gameOptimizers.physics.getStats();
+                    document.getElementById('physicsObjects').textContent = physicsStats.activeObjects || 0;
+                    document.getElementById('optimizationCount').textContent = physicsStats.optimizationsApplied || 0;
+                }
+                
+                document.getElementById('memoryUsage').textContent = getMemoryUsage();
+                document.getElementById('telegramStatus').textContent = gameOptimizers.telegram ? 'متصل' : 'غیرمتصل';
+                
+                // تغییر رنگ بر اساس عملکرد
+                const fpsElement = document.getElementById('fpsDisplay');
+                if (mainStats.fps < 15) {
+                    fpsElement.style.color = '#ff4444';
+                } else if (mainStats.fps < 25) {
+                    fpsElement.style.color = '#ffaa00';
+                } else {
+                    fpsElement.style.color = '#44ff44';
+                }
+                
+            } catch (error) {
+                console.warn('خطا در به روزرسانی نمایش:', error);
+            }
+        }
+        
+        // تطبیق با تغییر عملکرد
+        function adaptToPerformanceChange(data) {
+            console.log('🔄 تطبیق با عملکرد جدید...');
+            
+            const newPreset = data.preset;
+            
+            // تنظیم بهینه ساز اصلی
+            if (gameOptimizers.main) {
+                gameOptimizers.main.setOption('maxFPS', newPreset.maxFPS);
+                gameOptimizers.main.setOption('lowQualityMode', newPreset.lowQualityMode);
+            }
+            
+            // تنظیم بهینه ساز فیزیک
+            if (gameOptimizers.physics) {
+                gameOptimizers.physics.setParameter('maxObjects', newPreset.maxPhysicsObjects);
+                gameOptimizers.physics.setParameter('velocityIterations', newPreset.physicsIterations);
+                
+                if (data.newClass === 'weak') {
+                    gameOptimizers.physics.enablePowerSaveMode();
+                } else {
+                    gameOptimizers.physics.disablePowerSaveMode();
+                }
+            }
+            
+            // اطلاع به بازی
+            notifyGameOfPerformanceChange(data);
+        }
+        
+        // اطلاع به بازی در مورد تغییر عملکرد
+        function notifyGameOfPerformanceChange(data) {
+            // ارسال event سفارشی به بازی
+            const event = new CustomEvent('performanceChanged', {
+                detail: {
+                    oldClass: data.oldClass,
+                    newClass: data.newClass,
+                    avgFPS: data.avgFPS,
+                    preset: data.preset
+                }
+            });
+            
+            window.dispatchEvent(event);
+            
+            // در Construct 2 می‌توانید به این event گوش دهید
+        }
+        
+        // اعمال theme به بازی
+        function applyThemeToGame(themeData) {
+            // تنظیم CSS variables
+            document.documentElement.style.setProperty('--game-bg-color', themeData.colors.bg_color);
+            document.documentElement.style.setProperty('--game-text-color', themeData.colors.text_color);
+            
+            // اطلاع به بازی
+            const event = new CustomEvent('themeChanged', {
+                detail: themeData
+            });
+            window.dispatchEvent(event);
+        }
+        
+        // تنظیم اندازه canvas
+        function resizeCanvas() {
+            const canvas = document.getElementById('gameCanvas');
+            const container = document.querySelector('.game-container');
+            
+            // محاسبه اندازه مناسب
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            const aspectRatio = 800 / 600; // نسبت تصویر بازی
+            
+            let newWidth, newHeight;
+            
+            if (containerWidth / containerHeight > aspectRatio) {
+                newHeight = containerHeight;
+                newWidth = newHeight * aspectRatio;
+            } else {
+                newWidth = containerWidth;
+                newHeight = newWidth / aspectRatio;
+            }
+            
+            canvas.style.width = newWidth + 'px';
+            canvas.style.height = newHeight + 'px';
+            
+            console.log(`📐 Canvas اندازه تغییر کرد: ${newWidth}x${newHeight}`);
+        }
+        
+        // متوقف کردن بازی
+        function pauseGame() {
+            console.log('⏸️ بازی متوقف شد');
+            // در اینجا کد متوقف کردن بازی Construct 2 قرار می‌گیرد
+        }
+        
+        // ادامه بازی
+        function resumeGame() {
+            console.log('▶️ بازی ادامه یافت');
+            // در اینجا کد ادامه دادن بازی Construct 2 قرار می‌گیرد
+        }
+        
+        // شبیه سازی محتوای بازی
+        function drawGameContent(ctx) {
+            // پاک کردن canvas
+            ctx.fillStyle = '#001122';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            
+            // رسم متن نمونه
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('بازی Construct 2 بهینه شده', ctx.canvas.width / 2, ctx.canvas.height / 2 - 50);
+            
+            ctx.font = '16px Arial';
+            ctx.fillText('برای تلگرام مینی اپ', ctx.canvas.width / 2, ctx.canvas.height / 2 - 20);
+            
+            // نمایش وضعیت بهینه سازی
+            if (gameOptimizers) {
+                const deviceClass = gameOptimizers.deviceInfo.performanceClass;
+                ctx.fillStyle = deviceClass === 'weak' ? '#ff4444' : deviceClass === 'medium' ? '#ffaa00' : '#44ff44';
+                ctx.fillText(`دستگاه: ${deviceClass}`, ctx.canvas.width / 2, ctx.canvas.height / 2 + 20);
+            }
+            
+            // رسم اشکال متحرک ساده
+            const time = Date.now() / 1000;
+            for (let i = 0; i < 5; i++) {
+                const x = ctx.canvas.width / 2 + Math.cos(time + i) * 100;
+                const y = ctx.canvas.height / 2 + Math.sin(time + i) * 50 + 80;
+                
+                ctx.fillStyle = `hsl(${(time * 50 + i * 60) % 360}, 70%, 50%)`;
+                ctx.beginPath();
+                ctx.arc(x, y, 10, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // ایجاد world فیزیک شبیه سازی شده
+        function createMockPhysicsWorld() {
+            // شبیه سازی ساده world فیزیک
+            return {
+                SetVelocityIterations: (iterations) => console.log('Velocity iterations:', iterations),
+                SetPositionIterations: (iterations) => console.log('Position iterations:', iterations),
+                SetContinuousPhysics: (enabled) => console.log('Continuous physics:', enabled),
+                SetWarmStarting: (enabled) => console.log('Warm starting:', enabled),
+                SetAllowSleeping: (enabled) => console.log('Allow sleeping:', enabled)
+            };
+        }
+        
+        // دریافت مصرف حافظه
+        function getMemoryUsage() {
+            if (performance.memory) {
+                const used = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+                const total = Math.round(performance.memory.totalJSHeapSize / 1024 / 1024);
+                return `${used}/${total} MB`;
+            }
+            return 'نامشخص';
+        }
+        
+        // به روزرسانی اطلاعات دستگاه
+        function updateDeviceInfo(deviceInfo) {
+            console.log('📱 اطلاعات دستگاه به روزرسانی شد:', {
+                performanceClass: deviceInfo.performanceClass,
+                cores: deviceInfo.deviceInfo.cores,
+                memory: deviceInfo.deviceInfo.memory,
+                isMobile: deviceInfo.deviceInfo.isMobile,
+                isWeakDevice: deviceInfo.deviceInfo.isWeakDevice
+            });
+        }
+        
+        // به روزرسانی متن بارگذاری
+        function updateLoadingText(text) {
+            document.getElementById('loadingText').textContent = text;
+        }
+        
+        // به روزرسانی پیشرفت
+        function updateProgress(percent) {
+            document.getElementById('loadingProgress').textContent = percent + '%';
+        }
+        
+        // مخفی کردن صفحه بارگذاری
+        function hideLoadingScreen() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            loadingScreen.style.opacity = '0';
+            loadingScreen.style.transition = 'opacity 0.5s';
+            
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500);
+        }
+        
+        // نمایش خطا
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('loadingScreen').style.display = 'none';
+        }
+        
+        // مدیریت تغییر اندازه صفحه
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+        });
+        
+        // مدیریت orientation change
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                resizeCanvas();
+            }, 100);
+        });
+        
+        // فعال کردن/غیرفعال کردن حالت debug
+        window.toggleDebug = function() {
+            isDebugMode = !isDebugMode;
+            const debugPanel = document.getElementById('debugInfo');
+            
+            if (isDebugMode) {
+                debugPanel.classList.add('show');
+            } else {
+                debugPanel.classList.remove('show');
+            }
+            
+            console.log('Debug mode:', isDebugMode ? 'فعال' : 'غیرفعال');
+        };
+        
+        // تست عملکرد دستی
+        window.testPerformance = async function() {
+            if (gameOptimizers && gameOptimizers.detector) {
+                console.log('🧪 شروع تست عملکرد...');
+                const result = await gameOptimizers.detector.detectDevice();
+                console.log('نتایج تست:', result);
+                return result;
+            }
+        };
+        
+        // اعمال بهینه سازی های اضطراری
+        window.applyEmergencyOptimizations = function() {
+            if (gameOptimizers && gameOptimizers.main) {
+                console.log('🚨 اعمال بهینه سازی های اضطراری...');
+                gameOptimizers.main.applyEmergencyOptimizations();
+            }
+        };
+        
+        // انیمیشن بازی (شبیه سازی game loop)
+        function gameLoop() {
+            if (gameInitialized) {
+                const canvas = document.getElementById('gameCanvas');
+                const ctx = canvas.getContext('2d');
+                drawGameContent(ctx);
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // شروع game loop
+        gameLoop();
+        
+        // لاگ برای debug
+        console.log('🎮 نمونه ادغام بهینه ساز Construct 2 بارگذاری شد');
+        console.log('دستورات قابل استفاده:');
+        console.log('- toggleDebug(): فعال/غیرفعال کردن حالت debug');
+        console.log('- testPerformance(): تست عملکرد دستگاه');
+        console.log('- applyEmergencyOptimizations(): اعمال بهینه سازی اضطراری');
+    </script>
+</body>
+</html>
